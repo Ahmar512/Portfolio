@@ -29,19 +29,14 @@ const ContactUs = () => {
         }
         
       });
+      setStatus({success: true, message:"Message sent succesfully"});
+      setButtonText("Send");
+      setFromDetails(formInitialDetails);
     }catch(e){
       console.log(e.message);
       setStatus({success:false, message: "Something went wrong, please sent again!"});
       setButtonText("Send");
       setFromDetails(formInitialDetails);
-    }
-    let result = response;
-    setButtonText("Send");
-    setFromDetails(formInitialDetails);
-    if(result.code == 200){
-      setStatus({success: true, message:"Message sent succesfully"});
-    }else{
-      setStatus({success:false, message: "Something went wrong, please sent again!"});
     }
   }
   return (
