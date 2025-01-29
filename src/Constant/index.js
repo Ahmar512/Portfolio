@@ -1,7 +1,7 @@
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import InstagramIcon from '@mui/icons-material/Instagram';
-import { htmll, csss, javaScriptt, react_js, material_ui, ejs, node_js, express_js, postgresql, my_sql, gitt, githubb, postman, vs_code, project1, project2, project3} from '../assets/images';
+import { htmll, csss, javaScriptt, react_js, material_ui, ejs, node_js, express_js, postgresql, my_sql, gitt, githubb, postman, vs_code, project1, project2, project3, mongoDB, tailwindCSS, daisyUI, project4} from '../assets/images';
 export const navLinks = [
     {label:"Home", href:"#home"},
     {label:"About Me", href:"#aboutMe"},
@@ -24,8 +24,8 @@ export const skills = [
             {label: "HTML", href: htmll},
             {label: "CSS", href: csss},
             {label: "JavaScript", href: javaScriptt},
-            {label: "Material UI", href: material_ui},
-            {label: "EJS", href: ejs},
+            {label: "Daisy UI", href: daisyUI},
+            {label: "Tailwind CSS", href: tailwindCSS},
         ]
     },
     {
@@ -35,6 +35,7 @@ export const skills = [
             {label: "Express JS", href: express_js},
             {label: "MySQL", href: my_sql},
             {label: "Postgresql", href: postgresql},
+            {label: "MongoDB", href: mongoDB},
         ]
     },
     {
@@ -48,6 +49,13 @@ export const skills = [
     }
 ]
 export const projects = [
+    {
+        title: "Real-Time Chat Application",
+        content: "Built a real-time chat application with instant messaging, image sharing via Cloudinary, real-time communication using Socket.IO, and a modern UI designed with DaisyUI and Tailwind CSS.",
+        href: project4,
+        link: "https://chat-app-7xw0.onrender.com/login",
+        tech:["React JS", "Tailwind CSS", "JavaScript","MongoDB","Express JS", "Socket.IO"]
+    },
     {
         title: "Authentication System",
         content: "Developed a secure authentication system that allows users to log in or sign up with their email, with OTP sent for verification. The system uses JSON Web Tokens (JWT) to manage sessions and ensure secure user data protection.",

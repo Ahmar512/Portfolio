@@ -20,3 +20,11 @@ body{
         @apply px-3 py-2 border-[1px] border-blue-400 rounded-xl outline-none bg-transparent font-montserrat;
     }
 }
+* {
+    
+    scrollbar-width: none; /* For Firefox */
+    -ms-overflow-style: none; /* For Internet Explorer and Edge */
+}
+*::-webkit-scrollbar {
+    display: none; /* For Chrome, Safari, and Opera */
+  }

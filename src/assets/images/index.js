@@ -19,6 +19,10 @@ import project2 from './poject2.png'
 import project3 from './authProject.png'
 import CPI from './CPI.png'
 import SRMU from './SRMU.png'
+import mongoDB from './MongoDB.png'
+import tailwindCSS from './TailwindCSS.png'
+import daisyUI from './daisyui.png'
+import project4 from './project4.png'
 
 export {
     heroImg,
@@ -40,6 +44,10 @@ export {
     project1,
     project2,
     project3,
+    project4,
     CPI,
     SRMU,
+    mongoDB,
+    tailwindCSS,
+    daisyUI,
 }
