@@ -28,7 +28,7 @@ function App() {
       <section className='px-20 py-5 max-sm:px-2 relative'>
         <Projects />
         
-        <div className=' absolute right-0 top-[50%] flex flex-col justify-center items-center '>
+        <div className='sm:hidden absolute right-0 top-[50%] flex flex-col justify-center items-center '>
               <div className='bg-slate-100/50 size-14 flex items-center justify-center rounded-full'>
                 <MoveRight className=' size-6' />
               </div>
