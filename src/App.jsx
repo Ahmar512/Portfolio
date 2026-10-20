@@ -7,6 +7,7 @@ import Nav from './Components/Nav';
 import AboutMe from './Sections/AboutMe';
 import Projects from './Sections/Projects';
 import Education from './Sections/Education';
+import NeonBay from './Sections/NeonBay';
 import ContactUs from './Sections/ContactUs';
 import Footer from './Sections/Footer';
 import axios from 'axios';
@@ -30,6 +31,9 @@ function App() {
       </section>
       <section className='px-20 py-5 max-sm:px-2'>
         <Education />
+      </section>
+      <section className='px-20 py-5 max-sm:px-2'>
+        <NeonBay />
       </section>
       <section>
         <Footer />

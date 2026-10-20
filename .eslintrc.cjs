@@ -11,6 +11,13 @@ module.exports = {
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
   settings: { react: { version: '18.2' } },
   plugins: ['react-refresh'],
+  overrides: [
+    {
+      // React Three Fiber elements take three.js props (args, intensity, ...) that eslint-plugin-react doesn't know
+      files: ['src/game/**/*.{js,jsx}'],
+      rules: { 'react/no-unknown-property': 'off', 'react/prop-types': 'off' },
+    },
+  ],
   rules: {
     'react/jsx-no-target-blank': 'off',
     'react-refresh/only-export-components': [
