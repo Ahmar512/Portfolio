@@ -200,6 +200,31 @@ export function createAudio() {
   engOsc.start()
   engOsc2.start()
 
+  // tyre screech: narrow band of noise
+  const skidSrc = ctx.createBufferSource()
+  skidSrc.buffer = noise
+  skidSrc.loop = true
+  const skidF = ctx.createBiquadFilter()
+  skidF.type = 'bandpass'
+  skidF.frequency.value = 1150
+  skidF.Q.value = 4
+  const skidG = ctx.createGain()
+  skidG.gain.value = 0
+  skidSrc.connect(skidF).connect(skidG).connect(sfx)
+  skidSrc.start()
+
+  // Engine character per vehicle: idle pitch, rev range, shift point, tone
+  const ENGINES = {
+    sport: { base: 46, range: 80, shift: 12, step: 11, w1: 'sawtooth', w2: 'square', filter: 950, gain: 0.055 },
+    sedan: { base: 38, range: 55, shift: 10, step: 9, w1: 'sawtooth', w2: 'square', filter: 650, gain: 0.05 },
+    taxi: { base: 38, range: 55, shift: 10, step: 9, w1: 'sawtooth', w2: 'square', filter: 650, gain: 0.05 },
+    police: { base: 41, range: 62, shift: 11, step: 10, w1: 'sawtooth', w2: 'square', filter: 750, gain: 0.05 },
+    van: { base: 30, range: 40, shift: 8, step: 7, w1: 'sawtooth', w2: 'sawtooth', filter: 480, gain: 0.065 },
+    bike: { base: 70, range: 130, shift: 13, step: 14, w1: 'square', w2: 'sawtooth', filter: 1600, gain: 0.04 },
+    boat: { base: 34, range: 48, shift: 40, step: 0, w1: 'sawtooth', w2: 'sawtooth', filter: 420, gain: 0.07 },
+  }
+  let engineModel = null
+
   const sirenOsc = ctx.createOscillator()
   sirenOsc.type = 'triangle'
   const sirenG = ctx.createGain()
@@ -207,8 +232,42 @@ export function createAudio() {
   sirenOsc.connect(sirenG).connect(sfx)
   sirenOsc.start()
 
+  // rain: looping filtered noise
+  const rainSrc = ctx.createBufferSource()
+  rainSrc.buffer = noise
+  rainSrc.loop = true
+  const rainF = ctx.createBiquadFilter()
+  rainF.type = 'bandpass'
+  rainF.frequency.value = 2500
+  rainF.Q.value = 0.4
+  const rainG = ctx.createGain()
+  rainG.gain.value = 0
+  rainSrc.connect(rainF).connect(rainG).connect(sfx)
+  rainSrc.start()
+
+  // helicopter rotor: noise chopped by a fast LFO
+  const heliSrc = ctx.createBufferSource()
+  heliSrc.buffer = noise
+  heliSrc.loop = true
+  const heliF = ctx.createBiquadFilter()
+  heliF.type = 'lowpass'
+  heliF.frequency.value = 500
+  const heliChop = ctx.createGain()
+  const heliLfo = ctx.createOscillator()
+  heliLfo.frequency.value = 11
+  const heliLfoAmt = ctx.createGain()
+  heliLfoAmt.gain.value = 0.5
+  heliLfo.connect(heliLfoAmt).connect(heliChop.gain)
+  heliChop.gain.value = 0.5
+  const heliG = ctx.createGain()
+  heliG.gain.value = 0
+  heliSrc.connect(heliF).connect(heliChop).connect(heliG).connect(sfx)
+  heliSrc.start()
+  heliLfo.start()
+
   let muted = false
   let inCar = false
+  const vol = { master: 0.8, music: 0.7, sfx: 0.8 }
 
   const now = () => ctx.currentTime
 
@@ -230,8 +289,16 @@ export function createAudio() {
     },
     toggleMute() {
       muted = !muted
-      master.gain.setTargetAtTime(muted ? 0 : 0.8, now(), 0.05)
+      master.gain.setTargetAtTime(muted ? 0 : vol.master, now(), 0.05)
       return muted
+    },
+    setVolumes(s) {
+      vol.master = s.master
+      vol.music = s.music
+      vol.sfx = s.sfx
+      master.gain.setTargetAtTime(muted ? 0 : vol.master, now(), 0.05)
+      sfx.gain.setTargetAtTime(0.7 * vol.sfx, now(), 0.05)
+      if (inCar) radio.gain.setTargetAtTime(0.55 * vol.music, now(), 0.1)
     },
     changeStation(dir) {
       station = (station + dir + STATIONS.length) % STATIONS.length
@@ -249,17 +316,31 @@ export function createAudio() {
       if (car !== inCar) {
         inCar = car
         playing = car
-        radio.gain.setTargetAtTime(car ? 0.55 : 0, t, car ? 0.3 : 0.15)
+        radio.gain.setTargetAtTime(car ? 0.55 * vol.music : 0, t, car ? 0.3 : 0.15)
       }
       if (v) {
+        const e = ENGINES[v.model] || ENGINES.sedan
+        if (engineModel !== v.model) {
+          engineModel = v.model
+          engOsc.type = e.w1
+          engOsc2.type = e.w2
+          engF.frequency.setTargetAtTime(e.filter, t, 0.05)
+        }
         const s = Math.abs(v.speed)
-        const gear = Math.floor(s / 11)
-        const rpm = (s % 11) / 11
-        const f = 38 + rpm * 55 + gear * 9 + Math.max(0, v.throttle) * 8
+        const gear = Math.floor(s / e.shift)
+        const rpm = (s % e.shift) / e.shift
+        const f = e.base + rpm * e.range + gear * e.step + Math.max(0, v.throttle) * 8 + (v.air ? 25 : 0)
         engOsc.frequency.setTargetAtTime(f, t, 0.05)
         engOsc2.frequency.setTargetAtTime(f * 0.5, t, 0.05)
-        engG.gain.setTargetAtTime(0.05 + Math.max(0, v.throttle) * 0.04, t, 0.1)
-      } else engG.gain.setTargetAtTime(0, t, 0.1)
+        engG.gain.setTargetAtTime(e.gain + Math.max(0, v.throttle) * 0.035, t, 0.1)
+        // screech when sliding or braking hard on land
+        const braking = v.throttle < -0.5 && v.speed > 14
+        const skid = v.model === 'boat' || v.air ? 0 : Math.max(Math.min(1, ((v.slip || 0) - 0.12) * 2.5), braking ? 0.6 : 0) * Math.min(1, s / 12)
+        skidG.gain.setTargetAtTime(skid * 0.22, t, 0.05)
+      } else {
+        engG.gain.setTargetAtTime(0, t, 0.1)
+        skidG.gain.setTargetAtTime(0, t, 0.05)
+      }
 
       let near = Infinity
       if (G.wanted.level > 0) {
@@ -269,12 +350,19 @@ export function createAudio() {
           near = Math.min(near, Math.hypot(u.x - P.x, u.z - P.z))
         }
       }
+      rainG.gain.setTargetAtTime((G.env?.rain || 0) * (inCar ? 0.12 : 0.22), t, 0.5)
+      const h = G.heli
+      const P = v || G.player
+      const hd = h && (h.active || h.falling) ? Math.hypot(h.x - P.x, h.y - P.y, h.z - P.z) : Infinity
+      heliG.gain.setTargetAtTime(hd < 160 ? 0.5 * (1 - hd / 160) : 0, t, 0.2)
       const sv = near < 120 ? 0.09 * (1 - near / 120) : 0
       sirenG.gain.setTargetAtTime(sv, t, 0.2)
       sirenOsc.frequency.setTargetAtTime(Math.floor(t / 0.45) % 2 ? 700 : 960, t, 0.03)
     },
-    event(e) {
+    event(e, P) {
       const t = now()
+      // distance falloff for sounds that happen somewhere in the world
+      const far = P && e.x !== undefined ? Math.max(0.05, 1 - Math.hypot(e.x - P.x, e.z - P.z) / 90) : 1
       switch (e.type) {
         case 'crash':
           burst(t, 0.35, Math.min(1, e.power / 22), sfx, 'lowpass', 900)
@@ -332,6 +420,45 @@ export function createAudio() {
         case 'spray':
           burst(t, 1.2, 0.3, sfx, 'highpass', 3000)
           break
+        case 'shot':
+          if (e.weapon === 'smg') {
+            burst(t, 0.07, 0.55, sfx, 'highpass', 900)
+            tone('square', 140, t, 0.05, 0.25, sfx, { endFreq: 60 })
+          } else {
+            burst(t, 0.16, 0.8, sfx, 'highpass', 600)
+            tone('sine', 120, t, 0.12, 0.6, sfx, { endFreq: 40 })
+          }
+          break
+        case 'copShot':
+          burst(t, 0.12, 0.5 * far, sfx, 'bandpass', 1400)
+          break
+        case 'punch':
+          burst(t, 0.06, 0.4, sfx, 'lowpass', 500)
+          break
+        case 'jump':
+          tone('sine', 300, t, 0.6, 0.2, sfx, { endFreq: 900 })
+          break
+        case 'land':
+          burst(t, 0.3, Math.min(1, (e.power || 8) / 20), sfx, 'lowpass', 600)
+          break
+        case 'stunt':
+        case 'tape':
+          [72, 76, 79, 84].forEach((n, i) => tone('triangle', mtof(n), t + i * 0.07, 0.2, 0.18, sfx))
+          break
+        case 'pickupWeapon':
+          burst(t, 0.05, 0.4, sfx, 'highpass', 2000)
+          tone('square', 220, t + 0.06, 0.08, 0.15, sfx, { filter: 1500 })
+          break
+        case 'heal':
+          tone('sine', 523, t, 0.15, 0.25, sfx)
+          tone('sine', 784, t + 0.12, 0.25, 0.25, sfx)
+          break
+        case 'thunder': {
+          const d = t + (e.delay || 0)
+          burst(d, 2.6, 0.9, sfx, 'lowpass', 300, 60)
+          tone('sine', 45, d, 2, 0.5, sfx, { endFreq: 28, attack: 0.05 })
+          break
+        }
         case 'panel':
           tone('sine', 740, t, 0.1, 0.15, sfx)
           break

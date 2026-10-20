@@ -119,6 +119,9 @@ export function humanGeometry(look) {
   return g
 }
 
+export const PLAYER_LOOK = { skin: '#c99272', shirt: '#ff5fa2', pants: '#ece6da', hair: '#1c120c', shoes: '#f2f2f2', glasses: true, hairStyle: 'short' }
+export const RIDER_LOOK = { skin: '#a8714a', shirt: '#2b2b33', pants: '#1f1f24', hair: '#1c120c', shoes: '#1a1a1a', glasses: true, hairStyle: 'short', jacket: '#1f1f24', longSleeves: true }
+
 export const humanMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.02 })
 
 export function createHuman(look) {
@@ -141,8 +144,9 @@ export function createHuman(look) {
   return { mesh, rig }
 }
 
-// Pose the skeleton. phase: gait phase, gait: 0 idle .. 1 walk .. 2 run, mode: 'move' | 'air' | 'down' | 'sit'
-export function poseHuman(rig, phase, gait, mode, t) {
+// Pose the skeleton. phase: gait phase, gait: 0 idle .. 1 walk .. 2 run,
+// mode: 'move' | 'air' | 'down' | 'ride' (motorbike) | 'sit' (boat); arms: null | 'aim' | 'gun'
+export function poseHuman(rig, phase, gait, mode, t, arms = null) {
   const s = Math.sin(phase)
   const c = Math.cos(phase)
   const run = Math.max(0, gait - 1)
@@ -169,6 +173,37 @@ export function poseHuman(rig, phase, gait, mode, t) {
   rig.armR.rotation.set(-s * a * 0.9 + breathe, 0, -0.07 - idle * 0.03)
   rig.foreL.rotation.set(-(0.2 + run * 0.9 + Math.max(0, -s) * a * 0.4), 0, 0)
   rig.foreR.rotation.set(-(0.2 + run * 0.9 + Math.max(0, s) * a * 0.4), 0, 0)
+
+  if (arms === 'aim') {
+    // two-handed aim straight ahead
+    rig.armR.rotation.set(-1.45, 0.15, 0)
+    rig.foreR.rotation.set(0, 0, 0)
+    rig.armL.rotation.set(-1.35, -0.45, 0.25)
+    rig.foreL.rotation.set(-0.35, 0, 0)
+    rig.spine.rotation.y = 0
+    rig.chest.rotation.y = 0
+  } else if (arms === 'gun') {
+    rig.armR.rotation.set(-0.35 + s * a * 0.3, 0, -0.05)
+    rig.foreR.rotation.set(-0.6, 0, 0)
+  }
+
+  if (mode === 'ride' || mode === 'sit') {
+    const bike = mode === 'ride'
+    rig.hips.position.y = 0.98
+    rig.hips.rotation.set(0, 0, 0)
+    rig.spine.rotation.set(bike ? 0.45 : 0.1, 0, 0)
+    rig.chest.rotation.set(bike ? 0.15 : 0, 0, 0)
+    rig.head.rotation.set(bike ? -0.5 : -0.1, 0, 0)
+    rig.thighL.rotation.set(-1.35, 0, bike ? 0.18 : 0.1)
+    rig.thighR.rotation.set(-1.35, 0, bike ? -0.18 : -0.1)
+    rig.shinL.rotation.set(bike ? 1.75 : 1.45, 0, 0)
+    rig.shinR.rotation.set(bike ? 1.75 : 1.45, 0, 0)
+    rig.armL.rotation.set(bike ? -0.9 : -1.0, 0, 0.25)
+    rig.armR.rotation.set(bike ? -0.9 : -1.0, 0, -0.25)
+    rig.foreL.rotation.set(bike ? -0.5 : -0.6, 0, 0)
+    rig.foreR.rotation.set(bike ? -0.5 : -0.6, 0, 0)
+    return
+  }
 
   if (mode === 'air') {
     rig.thighL.rotation.x = -0.7

@@ -3,15 +3,13 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import {
-  WORLD, BLOCKS, BLOCK, CITY_EDGE, BEACH_END, PIER, SIDEWALK_H, roadCoord, blockCenter,
+  WORLD, BLOCKS, BLOCK, CITY_EDGE, BEACH_END, PIER, SIDEWALK_H, HIGHWAY, roadCoord, blockCenter,
 } from '../world'
 import { signTexture, grainTexture } from '../textures'
 import { FX, glow } from '../fx'
 import { projects, skills } from '../../Constant'
 import { ahmar, SRMU } from '../../assets/images'
 
-export const SKY = { top: '#24104f', mid: '#a5306f', horizon: '#ff8a7a' }
-export const SUN_DIR = new THREE.Vector3(1, 0.07, 0.12).normalize()
 
 const tmp = new THREE.Object3D()
 const tmpColor = new THREE.Color()
@@ -41,6 +39,8 @@ function buildingMaterial() {
   const mat = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0 })
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uGlow = { value: FX.glow }
+    shader.uniforms.uNight = { value: 0 }
+    mat.userData.shader = shader
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         varying vec3 vWPos; varying vec3 vWNorm; flat varying float vTop; flat varying float vSeed;`)
@@ -58,6 +58,7 @@ function buildingMaterial() {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform float uGlow;
+        uniform float uNight;
         varying vec3 vWPos; varying vec3 vWNorm; flat varying float vTop; flat varying float vSeed;
         float hash21(vec2 p) {
           p = fract(p * vec2(0.1031, 0.1030));
@@ -81,15 +82,15 @@ function buildingMaterial() {
           float floors = step(1.0, id.y) * step(vWPos.y, vTop - 1.1);
           winMask = mix(0.45, inside, fade) * floors;
           float h = hash21(id * vec2(1.0, 3.0) + vec2(mod(vSeed, 997.0), abs(nrm.x) > 0.5 ? 17.0 : 0.0));
-          winLit = step(0.8, h) * inside * floors * fade;
+          winLit = step(mix(0.8, 0.6, uNight), h) * inside * floors * fade;
           litCol = h > 0.93 ? vec3(0.55, 0.9, 1.0) : vec3(1.0, 0.78, 0.48);
           float shopU = fract(u / 5.0);
           float shop = (1.0 - step(1.0, id.y)) * step(0.12, shopU) * step(shopU, 0.88) * step(0.45, vWPos.y) * step(vWPos.y, 3.3);
           winMask = max(winMask, shop * fade);
-          winLit = max(winLit, shop * 0.5 * fade * step(0.45, hash21(vec2(floor(u / 5.0), mod(vSeed, 997.0)))));
+          winLit = max(winLit, shop * mix(0.5, 1.0, uNight) * fade * step(0.45, hash21(vec2(floor(u / 5.0), mod(vSeed, 997.0)))));
           diffuseColor.rgb *= mix(1.0, 0.75, step(vWPos.y, 0.45));
         } else if (nrm.y > 0.5) {
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.32, 0.3, 0.34), 0.75);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.2, 0.19, 0.22), 0.85);
         }
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03, 0.05, 0.09), winMask);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -97,16 +98,21 @@ function buildingMaterial() {
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
         metalnessFactor = mix(metalnessFactor, 0.9, winMask);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += litCol * winLit * uGlow * 0.45;`)
+        totalEmissiveRadiance += litCol * winLit * uGlow * mix(0.45, 0.5, uNight);`)
   }
   return mat
 }
 
-function Buildings() {
+function Buildings({ G }) {
   const bodies = useRef()
   const trims = useRef()
   const roofs = useRef()
   const mat = useMemo(buildingMaterial, [])
+  useFrame(() => {
+    const n = G.env.night
+    if (mat.userData.shader) mat.userData.shader.uniforms.uNight.value = n
+    if (trims.current) trims.current.material.color.setScalar(0.55 + 0.45 * n)
+  })
 
   // rooftop clutter: AC units and water tanks
   const roofItems = useMemo(() => {
@@ -255,7 +261,16 @@ function Palms() {
   )
 }
 
-function StreetLamps() {
+function StreetLamps({ G }) {
+  useFrame(() => {
+    const e = G.env
+    const on = Math.max(THREE.MathUtils.clamp((e.night - 0.15) / 0.4, 0, 1), e.rain * 0.5)
+    if (bulbs.current) bulbs.current.material.color.setScalar(0.1 + 0.9 * on)
+    if (pools.current) {
+      pools.current.material.opacity = (0.32 + e.wet * 0.25) * on
+      pools.current.visible = on > 0.02
+    }
+  })
   const poles = useRef()
   const bulbs = useRef()
   const pools = useRef()
@@ -347,7 +362,23 @@ function asphaltTexture() {
   return t
 }
 
-function Ground() {
+function Ground({ G }) {
+  const road = useRef()
+  const walk = useRef()
+  const dry = useMemo(() => new THREE.Color('#ffffff'), [])
+  const damp = useMemo(() => new THREE.Color('#7b7a86'), [])
+  useFrame(() => {
+    const w = G.env.wet
+    if (road.current) {
+      road.current.roughness = THREE.MathUtils.lerp(0.9, 0.12, w)
+      road.current.envMapIntensity = 1 + w * 1.2
+      road.current.color.copy(dry).lerp(damp, w)
+    }
+    if (walk.current) {
+      walk.current.roughness = THREE.MathUtils.lerp(0.85, 0.3, w)
+      walk.current.color.copy(dry).lerp(damp, w * 0.6)
+    }
+  })
   const slabs = useRef()
   const dashes = useRef()
   const zebra = useRef()
@@ -419,7 +450,7 @@ function Ground() {
     <group>
       <mesh rotation-x={-Math.PI / 2} receiveShadow>
         <planeGeometry args={[W, W]} />
-        <meshStandardMaterial map={asphalt} roughness={0.9} />
+        <meshStandardMaterial ref={road} map={asphalt} roughness={0.9} />
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position={[BEACH_END - 1500, -0.6, 0]}>
         <planeGeometry args={[3000, 3000]} />
@@ -431,7 +462,7 @@ function Ground() {
       </mesh>
       <Ocean />
       <instancedMesh ref={slabs} args={[unitBox, null, blocks.length]} receiveShadow>
-        <meshStandardMaterial roughness={0.85} />
+        <meshStandardMaterial ref={walk} roughness={0.85} />
       </instancedMesh>
       <instancedMesh ref={dashes} args={[unitBox, null, dashList.length]} receiveShadow>
         <meshStandardMaterial roughness={0.7} />
@@ -616,6 +647,19 @@ function Landmark({ l }) {
       <Billboard key={t.label} url={t.href} neon={l.neon} size={[2.4, 2.4]} rotationY={rotY}
         position={[l.x + (k - 3) * 3.6, 4.5, front + l.facing * 0.05]} />
     ))
+  } else if (l.id === 'mall') {
+    extras = (
+      <group>
+        <mesh position={[l.x, 3, front + l.facing * 0.06]} rotation-y={rotY}>
+          <planeGeometry args={[14, 6]} />
+          <meshPhysicalMaterial color="#9fd8ee" roughness={0.05} metalness={0.4} transparent opacity={0.85} />
+        </mesh>
+        <mesh position={[l.x, 6.4, front + l.facing * 2]} castShadow>
+          <boxGeometry args={[16, 0.35, 4]} />
+          <meshStandardMaterial color="#f4f4f6" roughness={0.4} />
+        </mesh>
+      </group>
+    )
   } else if (l.id === 'spray') {
     extras = (
       <mesh position={[l.x, 1.8, front + l.facing * 0.03]} rotation-y={rotY}>
@@ -648,84 +692,154 @@ function Landmark({ l }) {
   )
 }
 
-export function makeSkyMaterial() {
-  return new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    fog: false,
-    uniforms: {
-      top: { value: new THREE.Color(SKY.top) },
-      mid: { value: new THREE.Color(SKY.mid) },
-      horizon: { value: new THREE.Color(SKY.horizon) },
-      sunDir: { value: SUN_DIR },
-    },
-    vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `
-      uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir;
-      varying vec3 vDir;
-      void main(){
-        float h = vDir.y;
-        vec3 col = mix(horizon, mid, smoothstep(0.0, 0.2, h));
-        col = mix(col, top, smoothstep(0.2, 0.65, h));
-        if (h < 0.0) col = mix(horizon, horizon * 0.35, smoothstep(0.0, -0.3, h));
-        float s = max(dot(normalize(vDir), sunDir), 0.0);
-        col += vec3(1.0, 0.55, 0.25) * pow(s, 12.0) * 0.7;
-        gl_FragColor = vec4(col, 1.0);
-      }`,
-  })
-}
-
-function Sky() {
-  const group = useRef()
-  const mat = useMemo(makeSkyMaterial, [])
-  const sunColor = useMemo(() => glow('#ffffff', 0.7), [])
-  const sunTex = useMemo(() => {
-    const c = document.createElement('canvas')
-    c.width = c.height = 256
-    const g = c.getContext('2d')
-    const grad = g.createLinearGradient(0, 0, 0, 256)
-    grad.addColorStop(0, '#fff3a0')
-    grad.addColorStop(0.55, '#ff9a3c')
-    grad.addColorStop(1, '#ff3d7f')
-    g.fillStyle = grad
-    g.beginPath()
-    g.arc(128, 128, 124, 0, Math.PI * 2)
-    g.fill()
-    g.globalCompositeOperation = 'destination-out'
-    for (let k = 0; k < 7; k++) g.fillRect(0, 150 + k * 15, 256, 3 + k * 1.3)
-    const t = new THREE.CanvasTexture(c)
-    t.colorSpace = THREE.SRGBColorSpace
-    return t
-  }, [])
-  const sun = useRef()
-  useFrame(({ camera }) => {
-    group.current.position.copy(camera.position)
-    sun.current.lookAt(camera.position)
-  })
+export default function City({ G }) {
   return (
-    <group ref={group}>
-      <mesh material={mat} renderOrder={-2}>
-        <sphereGeometry args={[800, 32, 16]} />
-      </mesh>
-      <mesh ref={sun} position={SUN_DIR.clone().multiplyScalar(700)} renderOrder={-1}>
-        <planeGeometry args={[120, 120]} />
-        <meshBasicMaterial map={sunTex} color={sunColor} transparent fog={false} depthWrite={false} toneMapped={false} />
-      </mesh>
+    <group>
+      <Ground G={G} />
+      <Buildings G={G} />
+      <Palms />
+      <StreetLamps G={G} />
+      <Hotels G={G} />
+      <Stadium G={G} />
+      <Highway />
+      {WORLD.landmarks.map((l) => (
+        <Landmark key={l.id} l={l} />
+      ))}
     </group>
   )
 }
 
-export default function City() {
+// ---------------------------------------------------------------- Ocean Drive hotels
+function Hotels({ G }) {
+  const fins = useRef([])
+  useFrame(() => {
+    const k = 0.55 + 0.45 * G.env.night
+    fins.current.forEach((m) => m && m.material.color.copy(m.userData.base).multiplyScalar(k))
+  })
+  return WORLD.hotels.map((h, i) => {
+    const face = h.x + h.w / 2
+    const tex = signTexture(`HOTEL ${h.name}`, h.neon, { width: 1024, height: 200 })
+    const base = glow(h.neon, 1)
+    return (
+      <group key={i}>
+        {/* name sign across the beach-facing facade */}
+        <mesh position={[face + 0.15, h.h - 2.2, h.z]} rotation-y={Math.PI / 2}>
+          <planeGeometry args={[h.d * 0.9, h.d * 0.9 * 0.2]} />
+          <meshBasicMaterial map={tex} color={glow('#ffffff', 0.6)} transparent toneMapped={false} />
+        </mesh>
+        {/* art-deco vertical neon fin */}
+        <mesh ref={(el) => { if (el) { el.userData.base = base; fins.current[i] = el } }} position={[face + 0.4, h.h / 2 + 2, h.z - h.d / 2 + 1]}>
+          <boxGeometry args={[0.6, h.h + 4, 0.25]} />
+          <meshBasicMaterial color={base} toneMapped={false} />
+        </mesh>
+        {/* entrance canopy */}
+        <mesh position={[face + 1.4, 3.2, h.z]} castShadow>
+          <boxGeometry args={[2.8, 0.25, 5]} />
+          <meshStandardMaterial color={h.neon} roughness={0.5} />
+        </mesh>
+      </group>
+    )
+  })
+}
+
+// ---------------------------------------------------------------- stadium
+function Stadium({ G }) {
+  const l = WORLD.lm.stadium
+  const { stands, wall, field } = useMemo(() => {
+    // stands: a sloped oval bowl
+    const prof = [[14, 0.2], [14.2, 1.5], [16.5, 6], [19.5, 12], [19.8, 14], [20, 14], [20, 0]].map(([r, y]) => new THREE.Vector2(r, y))
+    const stands = new THREE.LatheGeometry(prof, 48).scale(1, 1, 0.92)
+    const wall = new THREE.CylinderGeometry(20.05, 20.05, 14, 48, 6, true).scale(1, 1, 0.92).translate(0, 7, 0)
+    const field = new THREE.CircleGeometry(14, 48).rotateX(-Math.PI / 2).scale(1, 1, 0.92).translate(0, 0.2, 0)
+    return { stands, wall, field }
+  }, [])
+  const lightColor = useMemo(() => glow('#f4f8ff', 1.4), [])
+  const lightMat = useMemo(() => new THREE.MeshBasicMaterial({ color: lightColor.clone(), toneMapped: false }), [lightColor])
+  useFrame(() => {
+    lightMat.color.copy(lightColor).multiplyScalar(0.1 + 0.9 * Math.max(G.env.night, G.env.rain * 0.6))
+  })
+  const towers = [[-17, -15], [17, -15], [-17, 15], [17, 15]]
+  return (
+    <group position={[l.x, 0, l.z]}>
+      <mesh geometry={stands} castShadow receiveShadow>
+        <meshStandardMaterial color="#b9bfcc" roughness={0.8} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={wall} castShadow>
+        <meshStandardMaterial color={l.color} roughness={0.6} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={field} receiveShadow>
+        <meshStandardMaterial color="#3f9a4a" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 14.1, 0]} rotation-x={-Math.PI / 2} scale={[1, 0.92, 1]}>
+        <ringGeometry args={[19.6, 20.4, 48]} />
+        <meshBasicMaterial color={glow(l.neon, 0.8)} toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+      {towers.map(([x, z]) => (
+        <group key={`${x},${z}`} position={[x, 0, z]}>
+          <mesh position={[0, 11, 0]} castShadow>
+            <cylinderGeometry args={[0.25, 0.4, 22, 8]} />
+            <meshStandardMaterial color="#5a5d66" metalness={0.7} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 22.4, 0]} rotation-y={Math.atan2(-x, -z)} material={lightMat}>
+            <boxGeometry args={[3, 1.6, 0.4]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- elevated highway (scenery)
+const HW_CARS = 26
+function Highway() {
+  const cars = useRef()
+  const H = HIGHWAY
+  const len = H.z1 - H.z0
+  const pillars = useMemo(() => {
+    const out = []
+    for (let z = H.z0; z <= H.z1; z += 24) out.push(z)
+    return out
+  }, [H])
+  const carState = useMemo(() => Array.from({ length: HW_CARS }, (_, i) => ({ z: H.z0 + (i / HW_CARS) * len, dir: i % 2 ? 1 : -1, speed: 22 + (i % 5) * 3, color: ['#ececee', '#15171c', '#7a0f1c', '#1f3a6b', '#f5c518', '#b9bec6'][i % 6] })), [H, len])
+  const o = useMemo(() => new THREE.Object3D(), [])
+  useLayoutEffect(() => {
+    const c = new THREE.Color()
+    carState.forEach((s, i) => cars.current.setColorAt(i, c.set(s.color)))
+    cars.current.instanceColor.needsUpdate = true
+  }, [carState])
+  useFrame((_, dt) => {
+    carState.forEach((s, i) => {
+      s.z += s.dir * s.speed * dt
+      if (s.z > H.z1) s.z = H.z0
+      if (s.z < H.z0) s.z = H.z1
+      o.position.set(H.x + s.dir * 3.6, H.y + 0.85, s.z)
+      o.rotation.set(0, s.dir > 0 ? 0 : Math.PI, 0)
+      o.updateMatrix()
+      cars.current.setMatrixAt(i, o.matrix)
+    })
+    cars.current.instanceMatrix.needsUpdate = true
+  })
   return (
     <group>
-      <Sky />
-      <Ground />
-      <Buildings />
-      <Palms />
-      <StreetLamps />
-      {WORLD.landmarks.map((l) => (
-        <Landmark key={l.id} l={l} />
+      <mesh position={[H.x, H.y, (H.z0 + H.z1) / 2]} castShadow receiveShadow>
+        <boxGeometry args={[H.width, 0.9, len]} />
+        <meshStandardMaterial color="#8f8c96" roughness={0.85} />
+      </mesh>
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[H.x + s * (H.width / 2 - 0.2), H.y + 0.9, (H.z0 + H.z1) / 2]}>
+          <boxGeometry args={[0.4, 0.9, len]} />
+          <meshStandardMaterial color="#c9c6cf" roughness={0.7} />
+        </mesh>
       ))}
+      {pillars.map((z) => (
+        <mesh key={z} position={[H.x, H.y / 2, z]} castShadow>
+          <boxGeometry args={[3, H.y, 2.2]} />
+          <meshStandardMaterial color="#a6a3ad" roughness={0.9} />
+        </mesh>
+      ))}
+      <instancedMesh ref={cars} args={[new THREE.BoxGeometry(1.9, 1.3, 4.4), null, HW_CARS]} castShadow frustumCulled={false}>
+        <meshStandardMaterial roughness={0.35} metalness={0.4} />
+      </instancedMesh>
     </group>
   )
 }

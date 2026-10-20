@@ -1,16 +1,27 @@
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 
 // The game (three.js etc.) is only downloaded when someone presses Play.
 const Game = lazy(() => import('../game/Game'))
 
-const features = ['Drive & steal cars', 'Cops & wanted stars', '3 missions', 'Synthwave radio', 'Portfolio buildings']
+const features = ['Cars, bikes & boats', 'Guns, cops & choppers', '6 missions', 'Day/night & rain', 'Stunt jumps', 'Hidden tapes', 'Synthwave radio', 'Portfolio buildings']
 
-const Loading = () => (
-  <div className='fixed inset-0 z-[1000] bg-[#120a24] flex flex-col items-center justify-center gap-4'>
-    <h2 className='text-5xl italic font-black text-[#ff2fd0] animate-pulse' style={{ fontFamily: '"Arial Black", Impact, sans-serif', textShadow: '0 0 18px #ff2fd0' }}>NEON BAY</h2>
-    <p className='font-montserrat text-slate-300'>Loading the city...</p>
-  </div>
-)
+// Shown while the game's code downloads; the game then continues the same bar for textures and shaders.
+const Loading = () => {
+  const [w, setW] = useState(2)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setW(15))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  return (
+    <div className='fixed inset-0 z-[1000] bg-[#120a24] flex flex-col items-center justify-center gap-5 p-6'>
+      <h2 className='text-5xl md:text-6xl italic font-black text-[#ff2fd0]' style={{ fontFamily: '"Arial Black", Impact, sans-serif', textShadow: '0 0 18px #ff2fd0' }}>NEON BAY</h2>
+      <div className='w-72 max-w-full h-3 rounded-full bg-white/10 overflow-hidden'>
+        <div className='h-full bg-gradient-to-r from-[#ff2fd0] to-[#18e5ff] transition-all duration-[1500ms] ease-out' style={{ width: `${w}%` }} />
+      </div>
+      <p className='font-montserrat text-sm text-slate-300'>Downloading the game…</p>
+    </div>
+  )
+}
 
 const NeonBay = () => {
   const [playing, setPlaying] = useState(false)

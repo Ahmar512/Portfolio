@@ -4,11 +4,12 @@ import * as THREE from 'three'
 import { MODELS } from '../sim'
 import { MISSIONS } from '../world'
 import { iconTexture, signTexture } from '../textures'
-import { glow } from '../fx'
+import { FX, glow } from '../fx'
 import { carParts } from './carModels'
-import { createHuman, poseHuman } from './humanModel'
+import { createHuman, poseHuman, PLAYER_LOOK } from './humanModel'
+import { Bike, Boat, Heli, Tracers, LockMarker, Ramps, Tapes, SpecialPickups, DriftFX } from './Extras'
 
-const DRAW_DIST = 190
+const DRAW_DIST = 165
 
 let shared = null
 // Created lazily so they pick up the quality settings chosen when the game starts.
@@ -43,18 +44,38 @@ function mats() {
   b.fillRect(0, 0, 64, 64)
   const blobTex = new THREE.CanvasTexture(blob)
 
+  // headlight beam: fades out along its length
+  const bc = document.createElement('canvas')
+  bc.width = 4
+  bc.height = 128
+  const bg = bc.getContext('2d')
+  const bgr = bg.createLinearGradient(0, 0, 0, 128)
+  bgr.addColorStop(0, '#000')
+  bgr.addColorStop(0.75, '#555')
+  bgr.addColorStop(1, '#fff')
+  bg.fillStyle = bgr
+  bg.fillRect(0, 0, 4, 128)
+  const beamTex = new THREE.CanvasTexture(bc)
+  const pc = document.createElement('canvas')
+  pc.width = pc.height = 64
+  const pg = pc.getContext('2d')
+  const pgr = pg.createRadialGradient(32, 32, 0, 32, 32, 32)
+  pgr.addColorStop(0, 'rgba(255,255,255,0.9)')
+  pgr.addColorStop(1, 'rgba(255,255,255,0)')
+  pg.fillStyle = pgr
+  pg.fillRect(0, 0, 64, 64)
+  const poolTex = new THREE.CanvasTexture(pc)
+
   shared = {
     glass: new THREE.MeshPhysicalMaterial({ color: '#0d1422', metalness: 0.1, roughness: 0.04, transparent: true, opacity: 0.88, envMapIntensity: 1.6, clearcoat: 1 }),
     trim: new THREE.MeshStandardMaterial({ color: '#141418', roughness: 0.5, metalness: 0.2 }),
     chrome: new THREE.MeshStandardMaterial({ color: '#e6e8ec', roughness: 0.12, metalness: 1 }),
     head: new THREE.MeshBasicMaterial({ vertexColors: true, color: glow('#ffffff', 0.9), toneMapped: false }),
     plate: new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.5 }),
-    wheel: [
-      new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.92 }),
-      new THREE.MeshStandardMaterial({ color: '#c9ccd2', roughness: 0.22, metalness: 1 }),
-      new THREE.MeshStandardMaterial({ color: '#2b2b30', roughness: 0.6, metalness: 0.6 }),
-    ],
+    wheel: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.55 }),
     blob: new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }),
+    beam: new THREE.MeshBasicMaterial({ color: '#fff4dc', alphaMap: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    pool: new THREE.MeshBasicMaterial({ color: '#fff0d0', map: poolTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
     fire: new THREE.MeshBasicMaterial({ color: glow('#ff7a1a', 1.2), transparent: true, opacity: 0.85, toneMapped: false }),
     police: signTexture('POLICE', '#ffffff', { width: 512, height: 128, bg: null }),
   }
@@ -62,8 +83,14 @@ function mats() {
 }
 
 const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+// cone pointing along +z, apex at the origin
+const beamGeo = new THREE.CylinderGeometry(2.6, 0.18, 11, 20, 1, true).rotateX(Math.PI / 2).translate(0, 0, 5.5)
+const poolGeo = new THREE.PlaneGeometry(5, 8).rotateX(-Math.PI / 2)
 const tmpV = new THREE.Vector3()
 const wreckColor = new THREE.Color('#1d1a1c')
+let lightbar = null
+const lightbarColors = () =>
+  lightbar || (lightbar = { red: glow('#ff1e3c', 1.5), blue: glow('#2f6bff', 1.8), redOff: new THREE.Color('#3a0c14'), blueOff: new THREE.Color('#0c1a3a') })
 
 function Car({ v }) {
   const root = useRef()
@@ -93,11 +120,13 @@ function Car({ v }) {
     g.visible = v.ai !== 'inactive' && tmpV.set(v.x, 0, v.z).distanceTo(camera.position) < DRAW_DIST
     if (!g.visible) return
     g.position.set(v.x, v.y, v.z)
+    g.rotation.order = 'YXZ'
     g.rotation.y = v.heading
     const lean = THREE.MathUtils.clamp(v.steer * v.speed * 0.005, -0.06, 0.06)
     body.current.rotation.z += (lean - body.current.rotation.z) * 0.15
     const pitch = THREE.MathUtils.clamp(-v.throttle * Math.sign(v.speed || 1) * 0.015, -0.025, 0.025)
     body.current.rotation.x += (pitch - body.current.rotation.x) * 0.08
+    g.rotation.x = v.pitch || 0
     for (let k = 0; k < 4; k++) {
       if (spin.current[k]) spin.current[k].rotation.x = v.wheel
       if (steer.current[k] && k < 2) steer.current[k].rotation.y = -v.steer * 0.5
@@ -112,8 +141,9 @@ function Car({ v }) {
     if (red.current) {
       const live = v.ai === 'police'
       const ph = Math.floor(clock.elapsedTime * 7) % 4
-      red.current.material.color.copy(live && ph < 2 ? glow('#ff1e3c', 1.5) : new THREE.Color('#3a0c14'))
-      blue.current.material.color.copy(live && ph >= 2 ? glow('#2f6bff', 1.8) : new THREE.Color('#0c1a3a'))
+      const lb = lightbarColors()
+      red.current.material.color.copy(live && ph < 2 ? lb.red : lb.redOff)
+      blue.current.material.color.copy(live && ph >= 2 ? lb.blue : lb.blueOff)
     }
     const burning = v.fire > 0 && !v.wreck
     fire.current.visible = burning
@@ -133,6 +163,12 @@ function Car({ v }) {
   return (
     <group ref={root}>
       <mesh geometry={blobGeo} material={M.blob} position={[0, 0.02, 0]} scale={[W * 1.3, 1, L * 1.1]} />
+      {v.model !== 'boat' && (
+        <group position={[0, P.spec.head[1], L / 2 + 0.1]}>
+          <mesh geometry={beamGeo} material={M.beam} rotation-x={0.08} />
+          <mesh geometry={poolGeo} material={M.pool} position={[0, 0.03 - P.spec.head[1], 5]} />
+        </group>
+      )}
       <group ref={body}>
         <mesh geometry={P.paint} material={paint} castShadow />
         <mesh geometry={P.glass} material={M.glass} />
@@ -181,10 +217,12 @@ function Car({ v }) {
           <group ref={(el) => (spin.current[k] = el)}>
             <mesh geometry={P.wheel} material={M.wheel} rotation-y={x < 0 ? Math.PI : 0} castShadow />
           </group>
-          <mesh position={[x < 0 ? 0.04 : -0.04, 0.12, -0.12]}>
-            <boxGeometry args={[0.06, 0.12, 0.16]} />
-            <meshStandardMaterial color={v.model === 'sport' ? '#d01f2f' : '#3a3a40'} />
-          </mesh>
+          {v.model === 'sport' && (
+            <mesh position={[x < 0 ? 0.04 : -0.04, 0.12, -0.12]}>
+              <boxGeometry args={[0.06, 0.12, 0.16]} />
+              <meshStandardMaterial color="#d01f2f" />
+            </mesh>
+          )}
         </group>
       ))}
       <mesh ref={fire} material={M.fire} position={[0, 1.2, L * 0.3]} visible={false}>
@@ -201,14 +239,32 @@ function Car({ v }) {
 }
 
 // Mirrors a sim object (player or pedestrian) onto a skinned human.
-function Human({ look, read }) {
+const gunMat = new THREE.MeshStandardMaterial({ color: '#1c1c22', metalness: 0.7, roughness: 0.35 })
+// barrel along +z, grip at the origin (the hand)
+const pistolGeo = new THREE.BoxGeometry(0.05, 0.11, 0.22).translate(0, 0.02, 0.07)
+const smgGeo = new THREE.BoxGeometry(0.06, 0.13, 0.44).translate(0, 0.02, 0.14)
+
+function Human({ look, read, armed }) {
   const g = useRef()
   const { mesh, rig } = useMemo(() => createHuman(look), [look])
   const st = useMemo(() => ({}), [])
+  const guns = useMemo(() => {
+    if (!armed) return null
+    // the gun hangs off a "hand" pivot at the end of the right forearm
+    const hand = new THREE.Group()
+    hand.position.set(-0.01, -0.29, 0.02)
+    const pistol = new THREE.Mesh(pistolGeo, gunMat)
+    const smg = new THREE.Mesh(smgGeo, gunMat)
+    hand.add(pistol, smg)
+    rig.foreR.add(hand)
+    return { hand, pistol, smg }
+  }, [armed, rig])
   useFrame(({ clock, camera }) => {
     const o = read(st)
     const grp = g.current
-    grp.visible = !o.hidden && tmpV.set(o.x, o.y, o.z).distanceTo(camera.position) < 130
+    const dist = tmpV.set(o.x, o.y, o.z).distanceTo(camera.position)
+    grp.visible = !o.hidden && dist < 105
+    mesh.castShadow = dist < 55
     if (!grp.visible) return
     grp.position.set(o.x, o.y, o.z)
     grp.rotation.y = o.heading
@@ -221,7 +277,13 @@ function Human({ look, read }) {
         grp.position.y += 0.14
       }
     } else grp.rotation.x = 0
-    poseHuman(rig, o.phase, o.gait, o.mode, clock.elapsedTime + o.x)
+    if (guns) {
+      guns.pistol.visible = o.weapon === 'pistol'
+      guns.smg.visible = o.weapon === 'smg'
+      // aiming: barrel continues along the outstretched arm; otherwise it points forward from the hand
+      guns.hand.rotation.x = o.arms === 'aim' ? Math.PI / 2 : o.arms === 'gun' ? 0.6 : 0
+    }
+    poseHuman(rig, o.phase, o.gait, o.mode, clock.elapsedTime + o.x, o.arms)
   })
   return (
     <group ref={g}>
@@ -229,8 +291,6 @@ function Human({ look, read }) {
     </group>
   )
 }
-
-const PLAYER_LOOK = { skin: '#c99272', shirt: '#ff5fa2', pants: '#ece6da', hair: '#1c120c', shoes: '#f2f2f2', glasses: true, hairStyle: 'short' }
 
 function Player({ G }) {
   const read = (st) => {
@@ -243,11 +303,14 @@ function Player({ G }) {
     st.hidden = !!p.vehicle
     const spd = Math.abs(p.speed)
     st.gait = spd > 0.3 ? Math.min(2, spd / 4.6 + (spd > 6 ? 0.3 : 0)) : p.moving ? 0.6 : 0
-    st.mode = G.deadT > 0 && G.deadKind === 'wasted' ? 'down' : p.vy !== 0 && p.y > 0.2 ? 'air' : 'move'
+    const down = (G.deadT > 0 && G.deadKind === 'wasted') || p.stunT > 0
+    st.mode = down ? 'down' : p.vy !== 0 && p.y > 0.2 ? 'air' : 'move'
     st.flying = false
+    st.weapon = p.weapon
+    st.arms = down || p.weapon === 'fists' ? null : G.aiming || p.shootT > 0 ? 'aim' : 'gun'
     return st
   }
-  return <Human look={PLAYER_LOOK} read={read} />
+  return <Human look={PLAYER_LOOK} read={read} armed />
 }
 
 function Peds({ G }) {
@@ -312,7 +375,7 @@ function Markers({ G }) {
         <Beam key={l.id} x={l.zone.x} z={l.zone.z} color={l.neon} radius={l.zone.r} height={10} icon={l.letter} />
       ))}
       <Beam x={W.lm.spray.zone.x} z={W.lm.spray.zone.z} color="#39ff88" radius={W.lm.spray.zone.r} height={6} icon="$" />
-      {MISSIONS.map((d) => (
+      {MISSIONS.filter((d) => d.giver).map((d) => (
         <Beam key={d.id} x={d.giver.x} z={d.giver.z} color="#ffd21f" radius={1.6} height={12} icon="!" visible={() => !G.mission} />
       ))}
       <Objective G={G} />
@@ -352,7 +415,7 @@ function Pickups({ G }) {
     G.pickups.forEach((p, k) => {
       const m = refs.current[k]
       if (!m) return
-      m.visible = p.active
+      m.visible = p.active && p.type === 'cash'
       m.position.y = 1.2 + Math.sin(t * 2 + k) * 0.25
       m.rotation.y = t * 2
     })
@@ -393,12 +456,49 @@ function Explosions({ G }) {
   ))
 }
 
+// Shared night-light state and a real spotlight for the player's car (desktop only).
+function NightLights({ G }) {
+  const spot = useRef()
+  const target = useMemo(() => new THREE.Object3D(), [])
+  const dayHead = useMemo(() => glow('#ffffff', 0.9), [])
+  const nightHead = useMemo(() => glow('#ffffff', 1.5), [])
+  useFrame(() => {
+    const M = mats()
+    const on = G.env.lightsOn ? 1 : 0
+    M.beam.opacity += (on * 0.07 - M.beam.opacity) * 0.1
+    M.pool.opacity += (on * 0.35 - M.pool.opacity) * 0.1
+    // don't even draw them in daylight
+    M.beam.visible = M.pool.visible = M.pool.opacity > 0.01
+    M.head.color.copy(on ? nightHead : dayHead)
+    const s = spot.current
+    if (!s) return
+    const v = G.player.vehicle
+    s.intensity = v && on ? 90 : 0
+    if (v) {
+      const fx = Math.sin(v.heading), fz = Math.cos(v.heading)
+      s.position.set(v.x + fx * 2.3, v.y + 0.9, v.z + fz * 2.3)
+      target.position.set(v.x + fx * 16, 0, v.z + fz * 16)
+      target.updateMatrixWorld()
+    }
+  })
+  if (!FX.bloom) return null
+  return <spotLight ref={spot} target={target} color="#fff1d8" intensity={0} angle={0.6} penumbra={0.7} distance={50} decay={1.6} />
+}
+
 export default function Entities({ G }) {
   return (
     <group>
-      {G.vehicles.map((v) => (
-        <Car key={v.id} v={v} />
-      ))}
+      <NightLights G={G} />
+      {G.vehicles.map((v) =>
+        v.model === 'bike' ? <Bike key={v.id} v={v} G={G} /> : v.model === 'boat' ? <Boat key={v.id} v={v} G={G} /> : <Car key={v.id} v={v} />,
+      )}
+      <Heli G={G} />
+      <Tracers G={G} />
+      <LockMarker G={G} />
+      <Ramps />
+      <Tapes G={G} />
+      <SpecialPickups G={G} />
+      <DriftFX G={G} />
       <Player G={G} />
       <Peds G={G} />
       <Markers G={G} />

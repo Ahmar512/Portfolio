@@ -56,7 +56,16 @@ export const SERVICES = [
   { id: 'police', sign: 'NBPD', block: [0, 3], facing: 1, w: 30, d: 18, h: 12, color: '#dfe8ff', neon: '#2f6bff' },
   { id: 'hospital', sign: 'HOSPITAL', block: [4, 5], facing: -1, w: 30, d: 20, h: 16, color: '#ffffff', neon: '#ff3b3b' },
   { id: 'spray', sign: 'NEON SPRAY', block: [1, 5], facing: -1, w: 16, d: 14, h: 7, color: '#7fffd4', neon: '#39ff88' },
+  { id: 'pizza', sign: 'PIZZA BAY', block: [3, 4], facing: -1, w: 18, d: 14, h: 8, color: '#ffe0b0', neon: '#ff5a1f' },
+  { id: 'mall', sign: 'NEON MALL', block: [1, 1], facing: 1, w: 36, d: 26, h: 12, color: '#eef0f6', neon: '#18e5ff' },
+  // drawn by its own component; only the collider and sign placement come from here
+  { id: 'stadium', sign: 'NEON BAY STADIUM', block: [0, 0], facing: 1, w: 40, d: 40, h: 14, color: '#d9dde6', neon: '#ff2fd0', custom: true },
 ]
+
+const HOTEL_NAMES = ['FLAMINGO', 'CORAL CLUB', 'THE PALMS', 'SEA BREEZE', 'MOONLIGHT', 'OCEAN VIEW', 'STARLITE', 'BAYSIDE', 'PELICAN', 'TROPICANA', 'SUNRISE INN', 'BLUE LAGOON']
+
+// Decorative elevated highway beyond the west edge of the city
+export const HIGHWAY = { x: -HALF - ROAD / 2 - 30, y: 9, z0: -620, z1: 620, width: 16 }
 
 const PARKS = [[1, 4], [4, 1]]
 
@@ -64,7 +73,28 @@ export const MISSIONS = [
   { id: 'delivery', name: 'Special Delivery', reward: 500, giver: { x: blockCenter(1), z: blockCenter(2) + 20 } },
   { id: 'race', name: 'Ocean Drive Dash', reward: 1000, giver: { x: 200, z: 60 } },
   { id: 'heat', name: 'Heat Wave', reward: 1500, giver: { x: blockCenter(4), z: blockCenter(3) + 20 } },
+  { id: 'pizza', name: 'Pizza Rush', reward: 800, giver: { x: blockCenter(3) + 5, z: blockCenter(4) - 19 } },
+  // started by pressing E inside any taxi
+  { id: 'taxi', name: 'Taxi Driver', reward: 0, giver: null },
 ]
+
+// Stunt ramps: start point, heading (direction of travel), length, width, height
+export const RAMPS = [
+  { id: 'beach-north', x: 205, z: 100, heading: Math.PI, len: 9, w: 5, h: 1.8 },
+  { id: 'beach-south', x: 210, z: -100, heading: 0, len: 9, w: 5, h: 1.8 },
+  { id: 'park', x: 70, z: -104, heading: Math.PI / 2, len: 8, w: 5, h: 1.6 },
+]
+const rampDir = (r) => [Math.sin(r.heading), Math.cos(r.heading)]
+// true if (x, z) lies on a ramp's run-up, the ramp itself or its landing strip
+function nearRampPath(x, z, pad = 3.5) {
+  return RAMPS.some((r) => {
+    const [dx, dz] = rampDir(r)
+    const rx = x - r.x, rz = z - r.z
+    const along = rx * dx + rz * dz
+    const lat = Math.abs(rx * dz - rz * dx)
+    return along > -16 && along < r.len + 38 && lat < r.w / 2 + pad
+  })
+}
 
 export const DELIVERY = {
   pickup: { x: PIER.end - 10, z: PIER.z },
@@ -110,10 +140,11 @@ export function buildWorld() {
     if (collide) colliders.push({ minX: x - 0.45, maxX: x + 0.45, minZ: z - 0.45, maxZ: z + 0.45 })
   }
 
+  const hotels = []
   const landmarks = [...LANDMARKS, ...SERVICES].map((spec) => {
     const cx = blockCenter(spec.block[0])
     const cz = blockCenter(spec.block[1])
-    const bz = cz - spec.facing * 4
+    const bz = spec.custom ? cz : cz - spec.facing * 4
     const l = {
       ...spec,
       x: cx,
@@ -122,6 +153,10 @@ export function buildWorld() {
       zone: { x: cx, z: frontZ(spec), r: spec.id === 'spray' ? 5.5 : 4.5 },
     }
     special.set(keyOf(spec.block), l)
+    if (spec.custom) {
+      colliders.push({ minX: cx - spec.w / 2, maxX: cx + spec.w / 2, minZ: cz - spec.d / 2, maxZ: cz + spec.d / 2 })
+      return l
+    }
     addBox({ x: cx, z: bz, w: spec.w, d: spec.d, h: spec.h, y: 0, color: spec.color, neon: spec.neon, bands: spec.id !== 'spray' })
     // Art-deco stepped tops on the taller ones
     if (spec.h > 15) {
@@ -157,9 +192,24 @@ export function buildWorld() {
         continue
       }
 
+      // Ocean Drive: a row of low art-deco hotels facing the beach
+      if (bi === BLOCKS - 1) {
+        for (const side of [-1, 1]) {
+          const w = 19, d = 17
+          const h = 10 + Math.floor(rnd() * 4) * 3
+          const x = cx + 9, z = cz + side * 10.5
+          const color = PASTELS[Math.floor(rnd() * PASTELS.length)]
+          const neon = NEONS[Math.floor(rnd() * NEONS.length)]
+          addBox({ x, z, w, d, h, y: 0, color, neon, bands: true })
+          addBox({ x: x + w / 2 - 1.5, z, w: 3, d: d * 0.4, h: 5, y: h, color, neon, bands: false }, false)
+          hotels.push({ x, z, w, d, h, neon, name: HOTEL_NAMES[hotels.length % HOTEL_NAMES.length] })
+        }
+      }
+
       // Generic block: 2x2 lots
       const centreDist = Math.hypot(cx, cz) / (HALF * 1.4)
       for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        if (bi === BLOCKS - 1 && lx > 0) continue
         const lotX = cx + lx * 9.75
         const lotZ = cz + lz * 9.75
         if (rnd() < 0.12) {
@@ -202,6 +252,43 @@ export function buildWorld() {
     addPalm(CITY_EDGE + 10 + rnd() * 22, z)
   }
 
+  // Keep stunt ramp run-ups and landings clear
+  for (let k = palms.length - 1; k >= 0; k--) if (nearRampPath(palms[k].x, palms[k].z)) palms.splice(k, 1)
+  for (let k = lamps.length - 1; k >= 0; k--) if (nearRampPath(lamps[k].x, lamps[k].z)) lamps.splice(k, 1)
+  for (let k = colliders.length - 1; k >= 0; k--) {
+    const c = colliders[k]
+    if (c.maxX - c.minX < 1.2 && nearRampPath((c.minX + c.maxX) / 2, (c.minZ + c.maxZ) / 2)) colliders.splice(k, 1)
+  }
+
+  const insideBuilding = (x, z, pad) => colliders.some((c) => x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad)
+
+  // Hidden neon tapes: tucked between buildings inside blocks, plus a couple of scenic spots
+  const packages = []
+  let guard = 0
+  while (packages.length < 8 && guard++ < 2000) {
+    const bi = Math.floor(rnd() * BLOCKS), bj = Math.floor(rnd() * BLOCKS)
+    if (special.has(keyOf([bi, bj])) || PARKS.some((p) => keyOf(p) === keyOf([bi, bj]))) continue
+    const x = blockCenter(bi) + (rnd() - 0.5) * 34
+    const z = blockCenter(bj) + (rnd() - 0.5) * 34
+    if (insideBuilding(x, z, 1.4)) continue
+    if (packages.some((p) => Math.hypot(p.x - x, p.z - z) < 60)) continue
+    packages.push({ x, z })
+  }
+  packages.push({ x: PIER.end - 4, z: PIER.z - 4 }, { x: BEACH_END - 6, z: CITY_EDGE - 6 })
+  packages.forEach((p, k) => (p.id = `tape${k}`))
+
+  // Pizza delivery addresses: sidewalk fronts of ordinary blocks
+  const addresses = []
+  for (let bi = 0; bi < BLOCKS; bi++) {
+    for (let bj = 0; bj < BLOCKS; bj++) {
+      if (special.has(keyOf([bi, bj])) || PARKS.some((p) => keyOf(p) === keyOf([bi, bj]))) continue
+      const cx = blockCenter(bi), cz = blockCenter(bj)
+      for (const [ox, oz] of [[0, -20.5], [0, 20.5], [-20.5, 0], [20.5, 0]]) {
+        if (!insideBuilding(cx + ox, cz + oz, 0.8)) addresses.push({ x: cx + ox, z: cz + oz })
+      }
+    }
+  }
+
   // Road graph nodes
   const nodes = []
   for (let i = 0; i <= BLOCKS; i++) for (let j = 0; j <= BLOCKS; j++) nodes.push({ i, j, x: roadCoord(i), z: roadCoord(j) })
@@ -227,7 +314,16 @@ export function buildWorld() {
   }
   const trafficModels = ['sedan', 'taxi', 'sedan', 'van', 'sport', 'sedan', 'taxi', 'sedan', 'van', 'sedan']
   trafficModels.forEach((model) => vehicleSpawns.push({ role: 'traffic', model, color: carColor(model, rnd) }))
-  for (let k = 0; k < 5; k++) vehicleSpawns.push({ role: 'police', model: 'police', color: '#14213d' })
+  for (let k = 0; k < 7; k++) vehicleSpawns.push({ role: 'police', model: 'police', color: '#14213d' })
+  vehicleSpawns.push(
+    { role: 'parked', model: 'bike', color: '#d01f2f', x: -17, z: 6, heading: Math.PI / 2 },
+    { role: 'parked', model: 'bike', color: '#ff5a1f', x: blockCenter(3) + 12, z: roadCoord(4) + 6, heading: Math.PI / 2 },
+    { role: 'parked', model: 'bike', color: '#18e5ff', x: CITY_EDGE + 8, z: 30, heading: 0 },
+    { role: 'traffic', model: 'bike', color: '#1f1f24' },
+    { role: 'traffic', model: 'bike', color: '#f5c518' },
+    { role: 'parked', model: 'boat', color: '#f2f2f2', x: BEACH_END + 30, z: PIER.z + PIER.halfWidth + 3.6, heading: Math.PI / 2 },
+    { role: 'parked', model: 'boat', color: '#1d4fd8', x: BEACH_END + 55, z: PIER.z - PIER.halfWidth - 3.6, heading: Math.PI / 2 },
+  )
 
   // Pedestrians walk loops around block sidewalks
   const pedSpawns = []
@@ -268,6 +364,14 @@ export function buildWorld() {
     pickups[k].value = [50, 100, 100, 200, 250][Math.floor(rnd() * 5)]
   }
   pickups.push({ x: 290, z: 3, value: 500 }) // end of the pier
+  pickups.forEach((p) => (p.type = 'cash'))
+  pickups.push(
+    { type: 'smg', x: CITY_EDGE + 14, z: -40 },
+    { type: 'smg', x: blockCenter(0) + 21, z: blockCenter(1) },
+    { type: 'health', x: -45, z: -9.5 },
+    { type: 'health', x: blockCenter(4) - 6, z: blockCenter(5) - 19 },
+    { type: 'health', x: blockCenter(1) + 14, z: blockCenter(4) + 14 },
+  )
 
   const lm = Object.fromEntries(landmarks.map((l) => [l.id, l]))
   return {
@@ -282,6 +386,10 @@ export function buildWorld() {
     vehicleSpawns,
     pedSpawns,
     pickups,
+    packages,
+    addresses,
+    hotels,
+    ramps: RAMPS,
     spawn: { x: -14, z: 2, heading: Math.PI / 2 },
     hospital: { x: lm.hospital.zone.x, z: lm.hospital.zone.z, heading: Math.PI },
     policeStation: { x: lm.police.zone.x, z: lm.police.zone.z, heading: 0 },

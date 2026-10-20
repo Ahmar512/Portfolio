@@ -134,7 +134,16 @@ export function wheelGeometry(r) {
     new THREE.CylinderGeometry(r * 0.7, r * 0.7, 0.22, 24, 1, true).rotateZ(Math.PI / 2),
     new THREE.CylinderGeometry(r * 0.56, r * 0.56, 0.03, 24).rotateZ(Math.PI / 2).translate(-0.02, 0, 0),
   ]
-  return merge([tire, merge(spokes), merge(dark)], true)
+  // one draw call per wheel: parts are told apart by vertex colour
+  const paint = (g, hex) => {
+    const c = new THREE.Color(hex)
+    const n = g.attributes.position.count
+    const a = new Float32Array(n * 3)
+    for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3)
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3))
+    return g
+  }
+  return merge([paint(nonIndexed(tire), '#131315'), paint(merge(spokes), '#c9ccd2'), paint(merge(dark), '#2b2b30')])
 }
 
 const cache = new Map()

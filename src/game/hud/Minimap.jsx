@@ -87,7 +87,7 @@ export default function Minimap({ G, size }) {
       for (const l of G.world.landmarks) if (l.letter) blip(l.zone.x, l.zone.z, l.neon, l.letter, true)
       const spray = G.world.lm.spray.zone
       blip(spray.x, spray.z, '#1faa5a', '$', false)
-      if (!G.mission) for (const m of MISSIONS) blip(m.giver.x, m.giver.z, '#e0b000', '!', true)
+      if (!G.mission) for (const m of MISSIONS) if (m.giver) blip(m.giver.x, m.giver.z, '#e0b000', '!', true)
       const flash = Math.floor(performance.now() / 250) % 2
       for (const v of G.vehicles) {
         if (v.role === 'police' && v.ai === 'police') blip(v.x, v.z, flash ? '#ff2a3d' : '#2f6bff', null, false, 4)

@@ -5,31 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { makeSkyMaterial, SUN_DIR } from './City'
 import { FX } from '../fx'
-
-// Sunset sky baked into an environment map, so paint, glass and water reflect it.
-export function SkyEnvironment() {
-  const { gl, scene } = useThree()
-  useEffect(() => {
-    const envScene = new THREE.Scene()
-    envScene.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), makeSkyMaterial()))
-    const sun = new THREE.Mesh(new THREE.CircleGeometry(4, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd28a').multiplyScalar(6) }))
-    sun.position.copy(SUN_DIR).multiplyScalar(45)
-    sun.lookAt(0, 0, 0)
-    envScene.add(sun)
-    const pmrem = new THREE.PMREMGenerator(gl)
-    const rt = pmrem.fromScene(envScene, 0.02)
-    scene.environment = rt.texture
-    scene.environmentIntensity = 0.7
-    pmrem.dispose()
-    return () => {
-      scene.environment = null
-      rt.dispose()
-    }
-  }, [gl, scene])
-  return null
-}
 
 // Bloom so neon, headlights and lit windows glow. Desktop only; phones render directly.
 export function Bloom() {
@@ -54,12 +30,30 @@ export function Bloom() {
   return null
 }
 
-// Steps quality down while the frame rate stays under 40fps: resolution, then bloom, then shadows.
+const DPR = [1.75, 1.25, 1, 1, 1]
+const DPR_MOBILE = [1.25, 1.1, 1, 1, 1]
+
+function applyLevel(level, setDpr) {
+  setDpr(Math.min(window.devicePixelRatio || 1, (FX.bloom ? DPR : DPR_MOBILE)[level]))
+  if (FX.bloomPass) FX.bloomPass.enabled = level < 3
+  if (FX.sunLight) FX.sunLight.castShadow = level < 4
+}
+
+// Fixed quality from settings, or (Auto) step down while the frame rate stays under 40fps:
+// resolution, then bloom, then shadows.
 function AutoQuality() {
   const { setDpr } = useThree()
-  const st = useRef({ t: 0, frames: 0, level: 0, skip: 2 })
+  const st = useRef({ t: 0, frames: 0, level: 0, skip: 2, version: -1 })
   useFrame((_, dt) => {
     const s = st.current
+    const mode = FX.settings?.quality || 'auto'
+    if (s.version !== FX.version) {
+      s.version = FX.version
+      s.level = { high: 0, medium: 1, low: 4 }[mode] ?? 0
+      s.skip = 2
+      applyLevel(s.level, setDpr)
+    }
+    if (mode !== 'auto') return
     s.t += dt
     s.frames++
     if (s.t < 2) return
@@ -70,10 +64,7 @@ function AutoQuality() {
     if (fps >= 40 || s.level >= 4) return
     s.level++
     s.skip = 1
-    if (s.level === 1) setDpr(1.25)
-    else if (s.level === 2) setDpr(1)
-    else if (s.level === 3 && FX.bloomPass) FX.bloomPass.enabled = false
-    else if (FX.sunLight) FX.sunLight.castShadow = false
+    applyLevel(s.level, setDpr)
   })
   return null
 }
@@ -81,7 +72,6 @@ function AutoQuality() {
 export default function Effects() {
   return (
     <>
-      <SkyEnvironment />
       {FX.bloom && <Bloom />}
       <AutoQuality />
     </>
