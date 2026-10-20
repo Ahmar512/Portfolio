@@ -4,6 +4,7 @@ import ProjectCard from "../Components/ProjectCard";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { FolderGit2, Sparkles } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -31,28 +32,34 @@ const Projects = () => {
   }, { scope: sectionRef });
 
   return (
-    <section 
-      ref={sectionRef} 
-      id="projects" 
-      className="relative h-screen w-full overflow-hidden flex flex-col md:justify-center bg-[#050505]"
+    <section
+      ref={sectionRef}
+      id="projects"
+      className="relative h-screen w-full overflow-hidden flex flex-col justify-center bg-[#050811]"
     >
-      <div className="absolute top-8 left-6 md:top-10 md:left-20 z-10">
-        <h1 className="text-4xl md:text-8xl font-bold font-palanquin tracking-tighter">
-          My <span className="text-blue-400">Projects</span>
-        </h1>
-        <p className="text-slate-400 font-montserrat mt-2 md:mt-4 max-w-lg text-sm md:text-lg px-2 md:px-0">
-          A showcase of my recent work, built with passion and precision. 
-          Scroll down to explore my journey.
+      {/* Header Info Overlay */}
+      <div className="absolute top-8 left-6 md:top-12 md:left-20 z-20">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full glass-pill border-sky-400/20 text-sky-300 text-xs font-code mb-2">
+          <FolderGit2 className="w-3.5 h-3.5 text-sky-400" />
+          <span>Showcase Portfolio</span>
+        </div>
+
+        <h2 className="text-3xl md:text-6xl font-extrabold font-outfit tracking-tight">
+          Featured <span className="text-gradient font-outfit">Projects</span>
+        </h2>
+        <p className="text-slate-400 font-jakarta mt-2 max-w-md text-xs md:text-sm hidden sm:block">
+          Explore my full-stack web applications featuring real-time socket messaging, secure authentication, and clean UI design.
         </p>
       </div>
 
-      <div 
-        ref={triggerRef} 
-        className="flex gap-8 md:gap-12 px-10 md:px-20 items-center w-max mt-32 md:mt-0"
+      {/* Scrollable Horizontal Track */}
+      <div
+        ref={triggerRef}
+        className="flex gap-8 md:gap-10 px-6 md:px-20 items-center w-max mt-24 md:mt-16 z-10"
       >
-        {/* Placeholder for spacing to let the title be visible before cards start passing */}
-        <div className="w-[30vw] md:w-[600px] flex-shrink-0" /> 
-        
+        {/* Leading spacer for title visibility */}
+        <div className="w-[10vw] md:w-[420px] flex-shrink-0" />
+
         {projects.map((p, index) => (
           <div key={index} className="flex-shrink-0">
             <ProjectCard
@@ -65,16 +72,15 @@ const Projects = () => {
           </div>
         ))}
 
-        {/* Ending space */}
-        <div className="w-[20vw] md:w-[400px] flex-shrink-0" />
+        {/* Ending spacer */}
+        <div className="w-[15vw] md:w-[300px] flex-shrink-0" />
       </div>
 
-      {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-1/4 h-1/4 bg-blue-900/10 blur-[100px] rounded-full pointer-events-none" />
+      {/* Decorative background glows */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-sky-600/10 blur-[130px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-900/15 blur-[120px] rounded-full pointer-events-none" />
     </section>
   );
 };
 
 export default Projects;
-

@@ -1,21 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark scroll-smooth">
   <head>
     <meta charset="UTF-8" />
     <link href="https://cdn.rawgit.com/michalsnik/aos/2.1.1/dist/aos.css" rel="stylesheet">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Montserrat:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Palanquin:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <link rel="icon" type="image/svg+xml" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Porfolio</title>
+    <meta name="description" content="Portfolio of Ahmar Ansari - Full Stack Web Developer & Software Engineer specializing in React, Node.js, DSA, and scalable applications." />
+    <title>Ahmar Ansari | Software Developer & Full Stack Engineer</title>
+    <!-- Lenis Smooth Scroll CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/lenis@1.1.18/dist/lenis.css">
+    <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
   </head>
-  <body >
+  <body class="bg-[#050811] text-slate-100 overflow-x-hidden selection:bg-sky-500 selection:text-white font-sans">
     <div id="root"></div>
     <script src="https://cdn.rawgit.com/michalsnik/aos/2.1.1/dist/aos.js"></script>
 
     <script>
-      AOS.init();
+      AOS.init({
+        duration: 800,
+        once: false,
+        easing: 'ease-out-cubic'
+      });
     </script>
     <script type="module" src="/src/main.jsx"></script>
-    
   </body>
 </html>
+

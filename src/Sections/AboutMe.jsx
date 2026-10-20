@@ -1,43 +1,98 @@
-import React from 'react'
-import { ahmar } from '../assets/images'
-import Button from '../Components/Button'
+import React from 'react';
+import { ahmar } from '../assets/images';
+import { Award, Terminal, Code, Cpu, ExternalLink, Download } from 'lucide-react';
 
 const AboutMe = () => {
-    const handleClick = () => {
-        window.location.href = 'https://drive.google.com/file/d/14KnfbNmtSNi5VPRDWKdxaJ8deQWNdt68/view?usp=drive_link';
-    }
-    return (
-        <section id='aboutMe' className='flex flex-col'>
-            <h1 className='font-palanquin font-bold text-center text-5xl py-2'>About <span className='text-blue-300'>Me</span></h1>
+  const handleClick = () => {
+    window.open('https://drive.google.com/file/d/14KnfbNmtSNi5VPRDWKdxaJ8deQWNdt68/view?usp=drive_link', '_blank');
+  };
 
-            <div data-aos="fade-up" className='flex max-lg:flex-col bg-black rounded-3xl my-5'>
-                <div className='w-[40%] max-lg:w-full flex justify-center items-center py-10'>
+  return (
+    <section id="aboutMe" className="max-w-6xl mx-auto py-8">
+      {/* Section Header */}
+      <div className="text-center mb-12">
+        <h2 className="text-3xl sm:text-5xl font-extrabold font-outfit tracking-tight">
+          About <span className="text-gradient font-outfit">Me</span>
+        </h2>
+        <p className="text-slate-400 font-jakarta text-sm sm:text-base mt-3 max-w-xl mx-auto">
+          Driven software engineer with a passion for problem solving, algorithmic efficiency, and full-stack web applications.
+        </p>
+      </div>
 
-                    <img className='rounded-xl hover:scale-110 transition-transform' src={ahmar} alt="ahmar pic" height={310} width={230} />
+      {/* Main Glass Card */}
+      <div data-aos="fade-up" className="glass-card rounded-3xl p-6 sm:p-10 border border-white/10 shadow-2xl relative overflow-hidden">
+        
+        {/* Glow corner background accent */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
 
-                </div>
-                <div className='w-[60%] max-lg:w-full flex justify-center flex-col p-5'>
-                    <h1 className=' font-palanquin text-4xl font-bold'>I'm Ahmar Ansari</h1>
-                    <p className='font-bold text-blue-300 mt-5 font-palanquin'>Full Stack Developer</p>
-                    <p className='font-montserrat mt-5 leading-normal  text-slate-300'>👋 Hi, I'm Ahmar, a dedicated Software Developer with a strong foundation in Java, Data Structures & Algorithms. Currently in my final year of B.Tech in Computer Science, I have solved 500+ problems on LeetCode, sharpening my problem-solving and analytical skills.
-                        <br />
-                        
-                        I have hands-on experience in full-stack development, working with ReactJS, Tailwind CSS, Node.js, and databases, and have built several projects, including an Real-Time Chat application, Authentication System with OTP & JWT security, and a medicine info hub.
-                        <br />
-
-                        I thrive on solving complex challenges and building efficient, scalable applications. Currently, I am seeking a Software Development Engineer (SDE) role where I can apply my skills to real-world problems and contribute to impactful software solutions.
-                        <br />
-
-                        🚀 Let’s connect and build the future together!</p>
-                    <div className='my-10'>
-                        <button className='bg-blue-500 px-5 py-2 rounded-xl font-bold text-lg hover:bg-blue-600 transition-colors font-montserrat' onClick={handleClick}>
-                            Check Resume
-                        </button>
-                    </div>
-                </div>
+        <div className="flex flex-col lg:flex-row items-center gap-10 relative z-10">
+          
+          {/* Left Avatar Column */}
+          <div className="w-full lg:w-[35%] flex flex-col items-center">
+            <div className="relative group">
+              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 opacity-40 group-hover:opacity-100 blur transition duration-500" />
+              <img
+                className="relative rounded-2xl w-60 sm:w-64 h-auto object-cover border border-white/10 group-hover:scale-105 transition-transform duration-500"
+                src={ahmar}
+                alt="Ahmar Ansari"
+              />
             </div>
-        </section>
-    )
-}
+            
+            <div className="mt-4 px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/30 text-sky-300 font-code text-xs font-semibold">
+              Available for SDE Roles 🚀
+            </div>
+          </div>
 
-export default AboutMe
+          {/* Right Text Column */}
+          <div className="w-full lg:w-[65%] flex flex-col justify-center">
+            <h3 className="text-2xl sm:text-3xl font-bold font-outfit text-white">
+              Hi, I'm Ahmar Ansari
+            </h3>
+            <p className="text-sky-400 font-code text-sm font-semibold mt-1">
+              Full Stack Developer & Competitive Programmer
+            </p>
+
+            <p className="font-jakarta text-slate-300 text-sm sm:text-base leading-relaxed mt-5">
+              👋 I am a dedicated Software Developer with a strong foundation in <strong className="text-white">Java, Data Structures & Algorithms</strong>. Currently in my final year of B.Tech in Computer Science, I have solved <span className="text-sky-400 font-semibold underline decoration-sky-400/40">500+ problems on LeetCode</span>, sharpening my analytical and logical problem-solving capabilities.
+              <br /><br />
+              I possess hands-on experience in full-stack engineering utilizing <strong className="text-white">ReactJS, Tailwind CSS, Node.js, Express, and Databases (MongoDB/MySQL/PostgreSQL)</strong>. I've engineered production apps like Real-Time Chat System with Socket.IO, Authentication System with JWT & OTP verification, and healthcare solutions.
+              <br /><br />
+              I thrive on building scalable software and tackling complex backend/frontend engineering challenges.
+            </p>
+
+            {/* Quick Stats Counter Grid */}
+            <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-white/10">
+              <div>
+                <span className="text-2xl sm:text-3xl font-extrabold font-outfit text-sky-400">500+</span>
+                <p className="text-xs font-jakarta text-slate-400 mt-0.5">LeetCode Solved</p>
+              </div>
+              <div>
+                <span className="text-2xl sm:text-3xl font-extrabold font-outfit text-indigo-400">7.99</span>
+                <p className="text-xs font-jakarta text-slate-400 mt-0.5">B.Tech CGPA</p>
+              </div>
+              <div>
+                <span className="text-2xl sm:text-3xl font-extrabold font-outfit text-purple-400">4+</span>
+                <p className="text-xs font-jakarta text-slate-400 mt-0.5">Major Web Apps</p>
+              </div>
+            </div>
+
+            {/* Resume Button */}
+            <div className="mt-8 flex items-center gap-4">
+              <button
+                onClick={handleClick}
+                className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-jakarta font-semibold text-sm shadow-glow-cyan hover:scale-105 active:scale-95 transition-all duration-300"
+              >
+                <span>Check Resume</span>
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default AboutMe;
