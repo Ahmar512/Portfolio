@@ -8,6 +8,7 @@ export const navLinks = [
     {label:"Skills", href:"#skills"},
     {label:"Projects", href:"#projects"},
     {label:"Education", href:"#education"},
+    {label:"Play", href:"#neon-bay"},
     {label:"Contact Us", href:"#contact_us"},
 ]
 export const role = ["Designer", "Developer","Programmer"]
